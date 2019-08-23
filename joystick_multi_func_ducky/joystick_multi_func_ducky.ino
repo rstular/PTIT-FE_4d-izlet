@@ -12,6 +12,8 @@
          - rotate the joystick to move the mouse around the screen
          - trigger down = mouse down
          - trigger up = mouse up
+       Mouse 3: IDLE
+         - devuce is IDLE
 
        Switch between the modes by pressing top button (order: 0 -> 1 -> 2 -> 0)
 
@@ -24,7 +26,10 @@
 
 
 // Enable serial output, baud rate 115200
-#define DEBUG
+//#define DEBUG
+
+// Number of modes
+#define Num_modes 4
 
 // Pins
 #define buttonFront 7
@@ -82,8 +87,9 @@ void changeMode(int newMode) {
     analogWrite(ledPin, 128);
   } else if (JOYSTICK_MODE == 2) {
     AbsoluteMouse.end();
-    Gamepad.begin();
     digitalWrite(ledPin, HIGH);
+  } else if (JOYSTICK_MODE == 3) {
+    Gamepad.begin();
   }
 
   JOYSTICK_MODE = newMode;
@@ -193,7 +199,7 @@ void loop() {
 
     if (digitalRead(buttonFront)) {
       // If only top button is pressed, switch modes
-      changeMode((JOYSTICK_MODE + 1) % 3);
+      changeMode((JOYSTICK_MODE + 1) % Num_modes);
 
     } else {
 
