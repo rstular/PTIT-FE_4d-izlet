@@ -13,7 +13,7 @@
          - trigger down = mouse down
          - trigger up = mouse up
        Mouse 3: IDLE
-         - devuce is IDLE
+         - device is IDLE
 
        Switch between the modes by pressing top button (order: 0 -> 1 -> 2 -> 0)
 
