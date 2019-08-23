@@ -1,5 +1,30 @@
-// Enable serial output
-//#define DEBUG
+/*
+   Multi-func joystick code
+
+   Usage:
+     3 modes:
+       Mode 0: joystick mode
+         - rotate the joystick in x/y axis to control x/y movement
+         - rotate while holding the trigger to zoom in/zoom out (y axis) and rotate (x axis)
+       Mode 1: keyboard mode
+         - for navigating street view (earth online)
+       Mode 2: mouse mode
+         - rotate the joystick to move the mouse around the screen
+         - trigger down = mouse down
+         - trigger up = mouse up
+
+       Switch between the modes by pressing top button (order: 0 -> 1 -> 2 -> 0)
+
+   Required library: HID-Project
+   Required library: MPU6050 program
+
+   License: MIT
+   (C) rstular, 2019
+*/
+
+
+// Enable serial output, baud rate 115200
+#define DEBUG
 
 // Pins
 #define buttonFront 7
@@ -24,18 +49,21 @@
 #include "HID-Project.h"
 #include "MPU6050_program.h"
 
+// Ducky payload
+static const char DUCKY_PAYLOAD[] = "https://www.youtube.com/watch?v=_S7WEVLbQ-Y";
+
 // Tracking joystick mode
 /*
    0 = joystick
    1 = keyboard
    2 = mouse
 */
-volatile int JOYSTICK_MODE = 0;
+int JOYSTICK_MODE = 0;
 
 // Tracking mouse button state
 bool mouseState = false;
 
-// Tracking button state for joystick (prevent buttons and axis from staying pressed)
+// Tracking button state for joystick (prevent buttons and axis from staying pressed when pressing/releasing trigger)
 bool turnOffFlag = false;
 bool turnOnFlag = false;
 
@@ -60,11 +88,78 @@ void changeMode(int newMode) {
 
   JOYSTICK_MODE = newMode;
 
-  #ifdef DEBUG
+#ifdef DEBUG
   Serial.print("New Mode: ");
   Serial.println(newMode);
-  #endif
+#endif
 
+}
+
+// both buttons pressed
+void payload_both() {
+#ifdef DEBUG
+  Serial.println("Executing payload 1");
+#endif
+  // execute ducky
+  executeDuckyPayload();
+}
+
+// front button pressed
+void payload_front() {
+#ifdef DEBUG
+  Serial.println("Executing payload 2");
+#endif
+  // send computer to sleep
+  System.begin();
+  System.write(SYSTEM_SLEEP);
+  System.end();
+  delay(300);
+}
+
+// top button pressed
+void payload_top() {
+#ifdef DEBUG
+  Serial.println("Executing payload 3");
+#endif
+  System.begin();
+  System.write(SYSTEM_POWER_DOWN);
+  System.end();
+  delay(300);
+}
+
+void executeDuckyPayload() {
+
+#ifdef DEBUG
+  Serial.println("Executing ducky payload");
+#endif
+
+  // Start keyboard module if it is not currently active
+  if (JOYSTICK_MODE != 1) {
+    Keyboard.begin();
+  }
+
+  // Open run box
+  Keyboard.press(KEY_LEFT_GUI);
+  Keyboard.press('r');
+  Keyboard.releaseAll();
+  delay(500);
+
+  // Set volume to 100
+  Consumer.begin();
+  for (int i = 0; i < 100; i++) {
+    Consumer.write(MEDIA_VOLUME_UP);
+  }
+  Consumer.end();
+
+  // Paste in the payload (youtube video)
+  Keyboard.println(DUCKY_PAYLOAD);
+
+  // Disable keyboard if it is not the selected mode
+  if (JOYSTICK_MODE != 1) {
+    Keyboard.end();
+  }
+
+  delay(1000);
 }
 
 void setup() {
@@ -84,18 +179,49 @@ void setup() {
   Gamepad.begin();
 
   // Debugging
-  #ifdef DEBUG
-    Serial.begin(115200);
-    while (!Serial);
-    Serial.println("Begin!");
-  #endif
+#ifdef DEBUG
+  Serial.begin(115200);
+  while (!Serial);
+  Serial.println("Begin!");
+#endif
 }
 
 void loop() {
-  // Switch modes if button is pressed
+  // Check which buttons are pressed
   if (!digitalRead(buttonTop)) {
-    changeMode((JOYSTICK_MODE + 1) % 3);
-    delay(500);
+    delay(300);
+
+    if (digitalRead(buttonFront)) {
+      // If only top button is pressed, switch modes
+      changeMode((JOYSTICK_MODE + 1) % 3);
+
+    } else {
+
+      for (int i = 0; i < 10; i++) {
+        digitalWrite(ledPin, HIGH);
+        delay(100);
+        digitalWrite(ledPin, LOW);
+        delay(100);
+      }
+
+#ifdef DEBUG
+      Serial.println("Entered payload mode");
+#endif
+
+      // Read which buttons are pressed at the moment and execute appropriate payload
+      if (!digitalRead(buttonFront) && !digitalRead(buttonTop)) {
+        payload_both();
+      } else if (!digitalRead(buttonFront) && digitalRead(buttonTop)) {
+        payload_front();
+      } else if (!digitalRead(buttonTop) && digitalRead(buttonFront)) {
+        payload_top();
+      } else {
+#ifdef DEBUG
+        Serial.println("No payload selected");
+#endif
+      }
+
+    }
   }
 
   // Get gyro values
@@ -114,16 +240,16 @@ void loop() {
       turnOffFlag = true;
 
       if (turnOnFlag) {
-        
-        #ifdef DEBUG
+
+#ifdef DEBUG
         Serial.println("Joystick button pressed!");
-        #endif
-        
+#endif
+
         turnOnFlag = false;
         Gamepad.xAxis(0);
         Gamepad.yAxis(0);
       }
-      
+
       if (izmerjen_pospesek_y < -Zoom_out_trigger) {
         Gamepad.press(Gamepad_zoom_out);
       } else if (izmerjen_pospesek_y > Zoom_in_trigger) {
@@ -144,17 +270,17 @@ void loop() {
 
     } else {
       turnOnFlag = true;
-      
+
       if (turnOffFlag) {
 
-        #ifdef DEBUG
+#ifdef DEBUG
         Serial.println("Joystick button released!");
-        #endif
-        
+#endif
+
         turnOffFlag = false;
         Gamepad.releaseAll();
       }
-      
+
       Gamepad.xAxis(izmerjen_pospesek_x);
       Gamepad.yAxis(izmerjen_pospesek_y);
     }
@@ -203,19 +329,19 @@ void loop() {
 
     if (!digitalRead(buttonFront) && !mouseState) {
 
-      #ifdef DEBUG
+#ifdef DEBUG
       Serial.println("Mouse button pressed!");
-      #endif
+#endif
 
       AbsoluteMouse.press();
       delay(100);
       mouseState = 1;
     } else if (digitalRead(buttonFront) && mouseState) {
 
-      #ifdef DEBUG
+#ifdef DEBUG
       Serial.println("Mouse button released!");
-      #endif
-      
+#endif
+
       AbsoluteMouse.release();
       delay(100);
       mouseState = 0;
