@@ -203,7 +203,7 @@ void loop() {
 
     } else {
 
-      for (int i = 0; i < 10; i++) {
+      for (int i = 0; i < 16; i++) {
         digitalWrite(ledPin, HIGH);
         delay(100);
         digitalWrite(ledPin, LOW);
